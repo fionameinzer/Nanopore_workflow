@@ -1,0 +1,2 @@
+sample,reads,illumina_r1,illumina_r2,truth_small_vcf,truth_sv_vcf
+sim1,ont_reads.fastq.gz,ill_R1.fastq.gz,ill_R2.fastq.gz,truth_small.vcf,truth_sv.vcf

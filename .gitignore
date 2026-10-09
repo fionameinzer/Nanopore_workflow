@@ -1,0 +1,9 @@
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+nanoflow_*.tar.gz
+nanoflow.Rcheck/
+inst/doc
+/results/
+*.log

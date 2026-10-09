@@ -1,0 +1,49 @@
+Package: nanoflow
+Title: End-to-End Oxford Nanopore Long-Read Whole-Genome Analysis
+    Workflow
+Version: 0.1.0
+Authors@R:
+    person("Fiona Katharina", "Meinzer",
+           email = "fiona.ewald@stat.uni-muenchen.de",
+           role = c("aut", "cre"))
+Description: Orchestrates an end-to-end Oxford Nanopore long-read
+    whole-genome analysis workflow on real sequencing data: optional
+    GPU basecalling (Dorado), read QC and trimming (NanoPlot, Porechop,
+    Filtlong, MultiQC), alignment (minimap2), optional de novo assembly
+    (Flye) with polishing, small-variant calling (Clair3), structural
+    variant calling (Sniffles2), haplotype phasing (WhatsHap),
+    annotation (SnpEff, AnnotSV), truth-set benchmarking (hap.py,
+    Truvari) and an HTML report. The package is an orchestration layer:
+    every step wraps an established command-line tool via system2(),
+    manages files between steps and returns standard formats (FASTQ,
+    BAM, VCF, FASTA). No algorithm is reimplemented. Defaults target
+    human GRCh38; reference, models and databases are configurable for
+    other diploid organisms. Nanopore reads are the primary input;
+    Illumina short reads are an optional per-sample extra used for
+    hybrid assembly.
+License: MIT + file LICENSE
+URL: https://github.com/fiona-meinzer/Nanopore_workflow
+BugReports: https://github.com/fiona-meinzer/Nanopore_workflow/issues
+Depends:
+    R (>= 4.1)
+Imports:
+    jsonlite,
+    stats,
+    tools,
+    utils,
+    yaml
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+SystemRequirements: External command-line tools resolved at runtime
+    (see inst/conda/environment.yml): dorado, NanoPlot, pycoQC, FastQC,
+    Porechop, Filtlong, MultiQC, minimap2, bwa, samtools, qualimap,
+    flye, canu, wengan, racon, medaka, quast, Clair3, sniffles, svim,
+    nanovar, SURVIVOR, spectre, whatshap, hapcut2, snpEff, AnnotSV,
+    hap.py, truvari, igv-reports, bgzip, tabix.
