@@ -4,6 +4,11 @@
 
 **End-to-end Oxford Nanopore long-read whole-genome analysis, orchestrated from R.**
 
+📊 **Results:** CI rebuilds the workflow on the synthetic fixture on every push —
+see the [live HTML run report](https://fionameinzer.github.io/Nanopore_workflow/)
+(GitHub Pages) and the caller-comparison numbers in
+[`benchmarks/`](benchmarks/).
+
 nanoflow runs a complete ONT WGS workflow on real sequencing data —
 basecalling → QC/trimming → alignment → (optional) de novo assembly →
 small-variant calling → SV calling → phasing → annotation → truth
@@ -35,7 +40,7 @@ hard-coded** — everything comes from a YAML config.
 1. **Clone and inspect**
 
    ```bash
-   git clone https://github.com/<org>/Nanopore_workflow.git
+   git clone https://github.com/fionameinzer/Nanopore_workflow.git
    cd Nanopore_workflow
    ```
 

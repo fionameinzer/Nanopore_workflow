@@ -1,0 +1,4 @@
+"tool","precision","recall","f1","TP","FP","FN","caller_sec"
+"sniffles",0.909090909090909,1,0.952380952380952,10,1,0,0.7
+"svim",1,0.6,0.75,6,0,4,10
+"survivor_merge",NA,NA,NA,NA,NA,NA,0

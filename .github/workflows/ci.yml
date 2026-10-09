@@ -122,3 +122,62 @@ jobs:
             nf_ci_run/multiqc/multiqc_report.html
             nf_ci_run/provenance.json
           if-no-files-found: ignore
+
+  # Job 3: publish the fixture run's HTML report to GitHub Pages so it is
+  # viewable in a browser (not just downloadable). Only on pushes to main;
+  # reuses the artifact job 2 produced rather than recomputing. Requires
+  # Pages to be enabled for the repo (Settings -> Pages -> Source: GitHub
+  # Actions); `enablement: true` turns it on automatically when permitted.
+  pages:
+    needs: integration
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nanoflow-fixture-run-report
+          path: artifact
+
+      - name: Assemble site
+        run: |
+          mkdir -p public
+          find artifact -name report.html        -exec cp {} public/report.html \;        || true
+          find artifact -name multiqc_report.html -exec cp {} public/multiqc_report.html \; || true
+          find artifact -name provenance.json     -exec cp {} public/provenance.json \;     || true
+          cat > public/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>nanoflow — synthetic fixture run</title>
+          <style>body{font-family:system-ui,sans-serif;max-width:46rem;margin:3rem auto;padding:0 1rem;line-height:1.5}
+          a{display:inline-block;margin:.3rem 0}code{background:#f3f3f3;padding:.1rem .3rem;border-radius:3px}</style>
+          </head><body>
+          <h1>nanoflow — synthetic fixture run</h1>
+          <p>End-to-end Oxford Nanopore workflow run on the committed 200&nbsp;kb
+          synthetic fixture, rebuilt by CI on every push to <code>main</code>.</p>
+          <ul>
+            <li><a href="report.html">Pipeline run report</a> — QC, alignment, assembly, SV benchmark</li>
+            <li><a href="multiqc_report.html">MultiQC report</a></li>
+            <li><a href="provenance.json">provenance.json</a> — every command, tool version, runtime</li>
+          </ul>
+          <p>Caller comparison numbers live in
+          <a href="https://github.com/fionameinzer/Nanopore_workflow/tree/main/benchmarks">benchmarks/</a>.</p>
+          </body></html>
+          HTML
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
