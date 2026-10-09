@@ -41,23 +41,39 @@ refs <- download_references("/data/refs", what = c("genome", "snpeff"))
 
 ## 3. Get the HG002 data and truth sets
 
-Representative public sources (several exist; any ONT HG002 run works):
+All of HG002 is openly available, with no registration or authentication.
+The nanopore reads come from ONT Open Data (Open Data on AWS), and the
+truth sets from NIST/GIAB. URLs below verified live 2026-10 (GIAB migrated
+its FTP to `/ReferenceSamples/giab/` and the current `latest` benchmark is
+**v5.0q**, which — unlike the older v4.2.1 small-variant + GRCh37-only SV
+Tier1 v0.6 sets — provides both small-variant and SV benchmarks natively on
+GRCh38, so the whole run stays in one coordinate system):
 
 ```bash
-# ONT open data: R10.4.1 HG002 (POD5 or basecalled FASTQ), e.g. from
-#   https://labs.epi2me.io/dataindex/  (ONT Open Data)
-#   aws s3 sync --no-sign-request s3://ont-open-data/giab_2023.05/... /data/hg002/
-# GIAB truth sets (small variants v4.2.1 + SV v0.6 Tier1):
-wget https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
-wget https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
-wget https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/AshkenazimTrio/analysis/NIST_SVs_Integration_v0.6/HG002_SVs_Tier1_v0.6.vcf.gz
+# ONT Open Data: R10.4.1 HG002 PromethION (POD5 + basecalled modBAM),
+# anonymous S3, no credentials. Browse the release to pick a flowcell, then
+# sync its POD5 directory (listing shows the exact sub-paths):
+#   https://epi2me.nanoporetech.com/giab-2025.01/   (overview + layout)
+aws s3 ls   --no-sign-request s3://ont-open-data/giab_2025.01/
+aws s3 sync --no-sign-request s3://ont-open-data/giab_2025.01/<flowcell>/ /data/hg002/pod5/
+
+# GIAB HG002 v5.0q truth sets on GRCh38 (small variants + SVs + regions)
+G=https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/latest
+wget $G/HG002_GRCh38_v5.0q_smvar.vcf.gz{,.tbi}
+wget $G/HG002_GRCh38_v5.0q_smvar.benchmark.bed       # small-variant confident regions
+wget $G/HG002_GRCh38_v5.0q_stvar.vcf.gz{,.tbi}
+wget $G/HG002_GRCh38_v5.0q_stvar.benchmark.bed       # SV confident regions
 ```
+
+(Older established alternatives, if a reviewer expects them: small variants
+`NISTv4.2.1/GRCh38/` and SV `data/.../NIST_SVs_Integration_v0.6/` — but the
+latter is GRCh37 only.)
 
 Sample sheet (`/data/hg002/samples.csv`):
 
 ```
 sample,reads,truth_small_vcf,truth_sv_vcf
-HG002,/data/hg002/pod5/,/data/refs/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz,/data/refs/HG002_SVs_Tier1_v0.6.vcf.gz
+HG002,/data/hg002/pod5/,/data/refs/HG002_GRCh38_v5.0q_smvar.vcf.gz,/data/refs/HG002_GRCh38_v5.0q_stvar.vcf.gz
 ```
 
 ## 4. Configure the run
@@ -114,7 +130,7 @@ Interrupted? Just rerun — finished steps are detected and skipped.
 
 With ~30× R10.4.1 sup reads, published results for this tool stack are
 roughly: SNV F1 ≈ 0.99+ (hap.py, GIAB confident regions), indel F1 ≈
-0.8–0.9, SV F1 ≈ 0.9–0.95 (Truvari vs Tier1), phase block N50 in the
+0.8–0.9, SV F1 ≈ 0.9–0.95 (Truvari vs the v5.0q GRCh38 SV benchmark), phase block N50 in the
 hundreds of kb with switch error < 1 %. The run report
 (`results/report.html`) gathers hap.py/Truvari tables, WhatsHap stats,
 QC and alignment metrics across samples; `results/HG002/benchmark/`
