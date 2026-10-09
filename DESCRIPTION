@@ -29,7 +29,6 @@ Depends:
 Imports:
     jsonlite,
     stats,
-    tools,
     utils,
     yaml
 Suggests:

@@ -150,7 +150,7 @@ print.nanoflow_tools <- function(x, ...) {
   cat("nanoflow external tools:\n")
   for (i in seq_len(nrow(x))) {
     cat(sprintf("  %s %-12s %-18s %s\n",
-                if (x$found[i]) "✓" else "✗",
+                if (x$found[i]) "\u2713" else "\u2717",
                 x$tool[i],
                 if (x$found[i]) paste0("v", x$version[i] %||% "?") else "NOT FOUND",
                 if (x$found[i]) x$path[i] else ""))

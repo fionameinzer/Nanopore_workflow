@@ -351,7 +351,7 @@ print.nanoflow_run <- function(x, ...) {
     for (nm in names(x$samples[[sample]])) {
       s <- x$samples[[sample]][[nm]]
       if (!inherits(s, "nanoflow_step")) next
-      mark <- switch(s$status, ok = "✓", skipped = "↷", "✗")
+      mark <- switch(s$status, ok = "\u2713", skipped = "\u21b7", "\u2717")
       cat(sprintf("  %s %-20s %-10s %s\n", mark, nm, s$tool,
                   if (s$status == "ok" && !is.na(s$runtime_sec))
                     sprintf("%.1fs", s$runtime_sec) else s$status))

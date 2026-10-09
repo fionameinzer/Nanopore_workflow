@@ -40,7 +40,7 @@ new_step <- function(step, tool, command = character(), outputs = list(),
 
 #' @export
 print.nanoflow_step <- function(x, ...) {
-  mark <- switch(x$status, ok = "✓", skipped = "↷", "✗")
+  mark <- switch(x$status, ok = "\u2713", skipped = "\u21b7", "\u2717")
   cat(sprintf("<nanoflow step: %s> %s [%s, %s]\n", x$step, mark, x$status,
               paste(x$tool, x$tool_version %||% "")))
   if (!is.null(x$message)) cat("  note:   ", x$message, "\n", sep = "")
