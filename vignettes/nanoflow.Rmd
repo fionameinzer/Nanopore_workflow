@@ -1,0 +1,132 @@
+---
+title: "Running the nanoflow workflow on the synthetic fixture"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Running the nanoflow workflow on the synthetic fixture}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+# The workflow chunks only evaluate when the core external tools are
+# present (e.g. inside the conda environment or the Apptainer container);
+# otherwise this vignette still builds and shows the code.
+core_tools <- c("minimap2", "samtools", "sniffles", "truvari",
+                "bgzip", "tabix")
+can_run <- all(nzchar(Sys.which(core_tools)))
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = can_run)
+```
+
+nanoflow orchestrates an end-to-end Oxford Nanopore whole-genome analysis:
+every step wraps an established command-line tool via `system2()`, checks
+its exit status and returns a `nanoflow_step` object with output paths,
+tool version, parameters and runtime. This vignette runs the pipeline on
+the tiny synthetic fixture that ships with the package: a 200 kb diploid
+genome with 290 planted small variants and 10 SVs, ~30× simulated Nanopore
+reads, ~30× Illumina pairs, and phased truth VCFs
+(see `data-raw/` in the source repository for the generator).
+
+## The inputs
+
+A run needs two things: a *sample sheet* and a *config*.
+
+```{r, eval = TRUE}
+library(nanoflow)
+
+sheet_csv <- system.file("extdata/sim/sample_sheet.csv", package = "nanoflow")
+read_sample_sheet(sheet_csv)[, c("sample", "input_type")]
+```
+
+The config is a YAML file (or R list) merged over `default_config()`; only
+non-default values are needed. All paths — reference, databases, binaries,
+output — live here, never in the code:
+
+```{r, eval = TRUE}
+cfg <- list(
+  reference = list(fasta = system.file("extdata/sim/genome.fa",
+                                       package = "nanoflow")),
+  output_dir = file.path(tempdir(), "nanoflow_demo"),
+  threads = 2,
+  steps = list(
+    qc = list(run = FALSE),            # skip QC here to keep the demo fast
+    assembly = list(run = FALSE),
+    small_variants = list(run = FALSE),# Clair3 model dir not set up here
+    # Sniffles >= 2.6 skips contigs < 1 Mb unless told otherwise -- our
+    # fixture contig is 200 kb, so this flag matters:
+    sv = list(run = TRUE, extra_args = "--all-contigs"),
+    report = list(run = FALSE)
+  )
+)
+```
+
+Before running anything, verify the environment:
+
+```{r}
+check_tools(tools = c("minimap2", "samtools", "sniffles", "truvari"))
+```
+
+## Running the pipeline
+
+```{r}
+run <- run_pipeline(sheet_csv, cfg)
+run
+```
+
+Each sample went through alignment and SV calling; because the sample
+sheet provides `truth_sv_vcf`, Truvari benchmarking ran automatically:
+
+```{r}
+run$samples$sim1$benchmark_sv$params$metrics
+```
+
+Calling `run_pipeline()` again with the same config *resumes*: steps whose
+outputs exist are skipped.
+
+```{r}
+run2 <- run_pipeline(sheet_csv, cfg)
+run2$samples$sim1$align$status
+```
+
+## Individual steps
+
+Every step is also an exported function usable on its own, always with an
+`extra_args` escape hatch to pass any tool option:
+
+```{r}
+ref <- file.path(tempdir(), "genome.fa")
+invisible(file.copy(system.file("extdata/sim/genome.fa",
+                                package = "nanoflow"), ref, overwrite = TRUE))
+aln <- align_minimap2(
+  system.file("extdata/sim/ont_reads.fastq.gz", package = "nanoflow"),
+  ref, file.path(tempdir(), "demo_align"), sample = "sim1", threads = 2,
+  extra_args = c("-k", "17"))
+aln
+```
+
+## Phasing against the truth
+
+With a VCF and a BAM, WhatsHap phases variants, haplotags the BAM, and —
+because the fixture has a phased truth VCF — computes switch errors:
+
+```{r, eval = can_run && nzchar(Sys.which("whatshap"))}
+unphased <- file.path(tempdir(), "unphased.vcf")
+truth <- system.file("extdata/sim/truth_small.vcf", package = "nanoflow")
+lines <- readLines(truth)
+body <- !startsWith(lines, "#")
+lines[body] <- sub("(\\d)\\|(\\d)$", "\\1/\\2", lines[body])
+writeLines(lines, unphased)
+
+ph <- phase_whatshap(unphased, aln$outputs$bam, ref,
+                     file.path(tempdir(), "demo_phase"), sample = "sim1",
+                     truth_vcf = truth)
+read.delim(ph$outputs$compare_tsv)[, c("all_switches", "all_switch_rate")]
+```
+
+## Provenance and reporting
+
+A run writes `provenance.json` (every command line, tool version, runtime)
+into the output directory, and `render_report(run)` builds a single HTML
+report across samples. On a real project you would also enable
+`steps$annotate` (SnpEff/AnnotSV) and, with POD5 input and a GPU,
+basecalling — see `vignette("giab-hg002")` for a real-data walkthrough,
+and `?download_references` for fetching GRCh38 and databases.

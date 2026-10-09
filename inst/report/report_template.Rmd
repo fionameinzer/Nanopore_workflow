@@ -1,0 +1,165 @@
+---
+title: "`r params$title`"
+date: "`r format(Sys.time(), '%Y-%m-%d %H:%M')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+params:
+  run: null
+  title: "nanoflow run report"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+run <- params$run
+samples <- run$samples[setdiff(names(run$samples), "_run")]
+step_or_null <- function(steps, name) {
+  s <- steps[[name]]
+  if (inherits(s, "nanoflow_step")) s else NULL
+}
+read_if <- function(path, reader, ...) {
+  if (!is.null(path) && length(path) == 1 && file.exists(path)) {
+    tryCatch(reader(path, ...), error = function(e) NULL)
+  } else NULL
+}
+```
+
+# Run overview
+
+Output directory: `` `r run$output_dir` `` — finished `r run$finished`.
+
+```{r overview}
+rows <- lapply(names(samples), function(id) {
+  steps <- samples[[id]]
+  marks <- vapply(steps, function(s) {
+    if (!inherits(s, "nanoflow_step")) return("—")
+    switch(s$status, ok = "✓", skipped = "↷ (resumed)", "✗ failed")
+  }, "")
+  data.frame(sample = id, step = names(steps), status = marks,
+             tool = vapply(steps, function(s)
+               paste(s$tool %||% "", s$tool_version %||% ""), ""),
+             runtime_s = vapply(steps, function(s)
+               round(s$runtime_sec %||% NA_real_, 1), 0),
+             row.names = NULL)
+})
+if (length(rows)) knitr::kable(do.call(rbind, rows))
+```
+
+```{r multiqc, results="asis"}
+mq <- run$samples[["_run"]]$multiqc
+if (inherits(mq, "nanoflow_step") && mq$status == "ok") {
+  cat(sprintf("The aggregated **[MultiQC report](%s)** collects all tool-level QC.\n",
+              mq$outputs$html))
+}
+```
+
+# Read QC
+
+```{r nanostats, results="asis"}
+for (id in names(samples)) {
+  for (which in c("qc_nanoplot", "qc_nanoplot_filtered")) {
+    st <- step_or_null(samples[[id]], which)
+    stats <- read_if(st$outputs$stats, readLines)
+    if (is.null(stats)) next
+    cat(sprintf("\n### %s — %s\n\n```\n%s\n```\n", id,
+                if (which == "qc_nanoplot") "raw reads" else "after Porechop + Filtlong",
+                paste(stats, collapse = "\n")))
+  }
+}
+```
+
+# Alignment
+
+```{r align, results="asis"}
+for (id in names(samples)) {
+  st <- step_or_null(samples[[id]], "align")
+  if (is.null(st)) next
+  cat(sprintf("\n### %s\n\n- BAM: `%s`\n", id, st$outputs$bam %||% "—"))
+  qm <- step_or_null(samples[[id]], "bam_qc")
+  if (!is.null(qm) && qm$status == "ok") {
+    cat(sprintf("- [Qualimap report](%s)\n", qm$outputs$report))
+  }
+}
+```
+
+# Assembly
+
+```{r assembly, results="asis"}
+any_asm <- FALSE
+for (id in names(samples)) {
+  st <- step_or_null(samples[[id]], "assembly_qc")
+  tsv <- read_if(st$outputs$report_tsv, utils::read.delim, check.names = FALSE)
+  if (is.null(tsv)) next
+  any_asm <- TRUE
+  cat(sprintf("\n### %s (QUAST)\n\n", id))
+  print(knitr::kable(tsv))
+}
+if (!any_asm) cat("*Assembly branch not run.*\n")
+```
+
+# Phasing
+
+```{r phasing, results="asis"}
+for (id in names(samples)) {
+  st <- step_or_null(samples[[id]], "phase")
+  stats <- read_if(st$outputs$stats_tsv, utils::read.delim)
+  if (!is.null(stats)) {
+    cat(sprintf("\n### %s — WhatsHap statistics\n\n", id))
+    keep <- intersect(c("chromosome", "variants", "phased", "unphased",
+                        "blocks", "block_n50"), names(stats))
+    print(knitr::kable(stats[, keep, drop = FALSE]))
+  }
+  cmp <- read_if(st$outputs$compare_tsv, utils::read.delim)
+  if (!is.null(cmp)) {
+    cat(sprintf("\n### %s — switch errors vs truth (whatshap compare)\n\n", id))
+    keep <- intersect(c("chromosome", "all_switches", "all_switch_rate",
+                        "blockwise_hamming_rate"), names(cmp))
+    print(knitr::kable(cmp[, keep, drop = FALSE]))
+  }
+}
+```
+
+# Benchmarks against truth
+
+```{r benchmarks, results="asis"}
+any_bench <- FALSE
+for (id in names(samples)) {
+  hp <- step_or_null(samples[[id]], "benchmark_small")
+  if (!is.null(hp$params$metrics)) {
+    any_bench <- TRUE
+    cat(sprintf("\n### %s — small variants (hap.py)\n\n", id))
+    print(knitr::kable(hp$params$metrics, digits = 4))
+  }
+  tv <- step_or_null(samples[[id]], "benchmark_sv")
+  if (!is.null(tv$params$metrics)) {
+    any_bench <- TRUE
+    cat(sprintf("\n### %s — structural variants (Truvari)\n\n", id))
+    print(knitr::kable(tv$params$metrics, digits = 4))
+  }
+}
+if (!any_bench) cat("*No truth VCFs in the sample sheet; benchmarking skipped.*\n")
+```
+
+# Provenance
+
+Every command, tool version and runtime is in
+`` `r file.path(run$output_dir, "provenance.json")` ``.
+
+```{r provenance}
+rows <- lapply(names(samples), function(id) {
+  steps <- samples[[id]]
+  data.frame(
+    sample = id,
+    step = names(steps),
+    command = vapply(steps, function(s)
+      paste(utils::head(s$command, 1) %||% "", collapse = " "), ""),
+    row.names = NULL)
+})
+if (length(rows)) {
+  df <- do.call(rbind, rows)
+  df$command <- substr(df$command, 1, 160)
+  knitr::kable(df)
+}
+```

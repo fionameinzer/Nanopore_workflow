@@ -1,0 +1,14 @@
+# hap.py lives in its own environment because it requires Python 2.7,
+# which conflicts with every modern tool in environment.yml.
+#   conda env create -f environment-happy.yml
+#   conda activate nanoflow-happy && which hap.py
+# then either put that bin dir on PATH for nanoflow runs or set
+#   tools:
+#     happy: /path/to/envs/nanoflow-happy/bin/hap.py
+# in your nanoflow config.
+name: nanoflow-happy
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - hap.py=0.3.15

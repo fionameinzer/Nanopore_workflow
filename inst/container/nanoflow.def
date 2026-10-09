@@ -1,0 +1,48 @@
+# Apptainer/Singularity definition for clusters where conda is unavailable.
+# Build FROM THE REPOSITORY ROOT (the def file copies the package source):
+#
+#   apptainer build nanoflow.sif inst/container/nanoflow.def
+#
+# Run the pipeline inside the container:
+#
+#   apptainer exec --bind /data nanoflow.sif \
+#     Rscript -e 'nanoflow::run_pipeline("/data/samples.csv", "/data/config.yml")'
+#
+# Notes
+# - Dorado (GPU basecalling) is not included; basecall on a GPU node with
+#   ONT's dorado build (use --nv and bind the dorado binary, or basecall
+#   outside the container). Everything else here is CPU-only.
+# - hap.py is installed into its own internal env and exposed on PATH.
+
+Bootstrap: docker
+From: mambaorg/micromamba:1.5.8
+
+%files
+    . /opt/nanoflow-src
+
+%post
+    micromamba create -y -n nanoflow \
+        -f /opt/nanoflow-src/inst/conda/environment.yml
+    micromamba create -y -n nanoflow-happy \
+        -f /opt/nanoflow-src/inst/conda/environment-happy.yml
+    micromamba clean -a -y
+    # expose hap.py inside the main env's PATH
+    ln -s /opt/conda/envs/nanoflow-happy/bin/hap.py \
+          /opt/conda/envs/nanoflow/bin/hap.py
+    # install the R package into the env's R
+    /opt/conda/envs/nanoflow/bin/R CMD INSTALL /opt/nanoflow-src
+    rm -rf /opt/nanoflow-src/.git
+
+%environment
+    export PATH=/opt/conda/envs/nanoflow/bin:$PATH
+    export LC_ALL=C.UTF-8
+
+%runscript
+    exec Rscript -e 'nanoflow::run_pipeline(commandArgs(TRUE)[1], commandArgs(TRUE)[2])' "$@"
+
+%test
+    /opt/conda/envs/nanoflow/bin/Rscript -e 'library(nanoflow); check_tools()'
+
+%labels
+    Package nanoflow
+    Description End-to-end Oxford Nanopore long-read WGS workflow (R orchestration)

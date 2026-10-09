@@ -1,0 +1,134 @@
+---
+title: "Real-data walkthrough: GIAB HG002 on GRCh38"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Real-data walkthrough: GIAB HG002 on GRCh38}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+# Documentation vignette: nothing here is executed at build time (the data
+# is hundreds of GB and needs a GPU + cluster).
+knitr::opts_chunk$set(eval = FALSE, collapse = TRUE, comment = "#>")
+```
+
+This vignette documents a complete real-data run on the public
+Genome-in-a-Bottle **HG002** sample, from raw POD5 to benchmarked,
+annotated variants. HG002 is ideal because GIAB publishes both Nanopore
+raw data and high-confidence truth sets, so the same benchmarking the
+pipeline applies to the synthetic fixture works on real data.
+
+## 1. Set up a fresh server
+
+Follow the README's "install on a new server" section: clone the
+repository, create the conda environments from `inst/conda/`, install the
+package, then verify:
+
+```{r}
+library(nanoflow)
+check_tools()
+has_gpu()   # TRUE required only for the basecalling step
+```
+
+## 2. Download the reference and databases
+
+```{r}
+refs <- download_references("/data/refs", what = c("genome", "snpeff"))
+# $genome_fasta: GCA_000001405.15_GRCh38_no_alt_analysis_set.fna (+ .fai)
+# $snpeff_data_dir: /data/refs/snpeff_data (GRCh38.105)
+```
+
+## 3. Get the HG002 data and truth sets
+
+Representative public sources (several exist; any ONT HG002 run works):
+
+```bash
+# ONT open data: R10.4.1 HG002 (POD5 or basecalled FASTQ), e.g. from
+#   https://labs.epi2me.io/dataindex/  (ONT Open Data)
+#   aws s3 sync --no-sign-request s3://ont-open-data/giab_2023.05/... /data/hg002/
+# GIAB truth sets (small variants v4.2.1 + SV v0.6 Tier1):
+wget https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz
+wget https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_1_22_v4.2.1_benchmark_noinconsistent.bed
+wget https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/AshkenazimTrio/analysis/NIST_SVs_Integration_v0.6/HG002_SVs_Tier1_v0.6.vcf.gz
+```
+
+Sample sheet (`/data/hg002/samples.csv`):
+
+```
+sample,reads,truth_small_vcf,truth_sv_vcf
+HG002,/data/hg002/pod5/,/data/refs/HG002_GRCh38_1_22_v4.2.1_benchmark.vcf.gz,/data/refs/HG002_SVs_Tier1_v0.6.vcf.gz
+```
+
+## 4. Configure the run
+
+`/data/hg002/config.yml`:
+
+```yaml
+reference:
+  fasta: /data/refs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna
+  snpeff_db: GRCh38.105
+  snpeff_data_dir: /data/refs/snpeff_data
+output_dir: /data/hg002/results
+threads: 32
+memory_gb: 128
+tools:
+  dorado: /opt/dorado/bin/dorado      # ONT build, GPU node
+  happy: /opt/conda/envs/nanoflow-happy/bin/hap.py
+steps:
+  basecall: {model: "sup"}
+  small_variants:
+    model: r1041_e82_400bps_sup_v420   # match your flowcell/chemistry!
+  sv:
+    extra_args: ["--tandem-repeats", "/data/refs/human_GRCh38_no_alt.trf.bed"]
+  annotate: {run: true}
+  report:
+    igv_regions: ["chr20:63025520-63075520"]
+```
+
+Two settings matter most on real ONT data: the **Clair3 model** and the
+**Dorado model** must match the flowcell chemistry and basecalling
+accuracy mode, and Sniffles benefits from the published GRCh38
+**tandem-repeat annotations**.
+
+## 5. Run
+
+On a workstation:
+
+```{r}
+run <- run_pipeline("/data/hg002/samples.csv", "/data/hg002/config.yml")
+```
+
+On a Slurm cluster (one job per sample; basecalling needs `gpus = 1`):
+
+```{r}
+submit_slurm("/data/hg002/samples.csv", "/data/hg002/config.yml",
+             partition = "gpu", gpus = 1, cpus = 32, mem_gb = 128,
+             setup_lines = c("module load apptainer",
+                             "source activate nanoflow"))
+```
+
+Interrupted? Just rerun — finished steps are detected and skipped.
+
+## 6. What to expect
+
+With ~30× R10.4.1 sup reads, published results for this tool stack are
+roughly: SNV F1 ≈ 0.99+ (hap.py, GIAB confident regions), indel F1 ≈
+0.8–0.9, SV F1 ≈ 0.9–0.95 (Truvari vs Tier1), phase block N50 in the
+hundreds of kb with switch error < 1 %. The run report
+(`results/report.html`) gathers hap.py/Truvari tables, WhatsHap stats,
+QC and alignment metrics across samples; `results/HG002/benchmark/`
+holds the raw hap.py and Truvari outputs; `provenance.json` records every
+command for the methods section of a paper.
+
+## 7. Benchmarking variations
+
+To compare callers (Phase 2 tools), rerun with a different selection and
+diff the benchmark tables — resume means only the changed steps rerun:
+
+```yaml
+steps:
+  sv: {tool: svim}         # or nanovar; merge_survivor() combines call sets
+  small_variants: {tool: medaka}
+  phase: {tool: hapcut2}
+```
