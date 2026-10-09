@@ -31,6 +31,16 @@ First release: end-to-end Oxford Nanopore WGS orchestration.
   `call_medaka()`, `call_svim()`, `call_nanovar()`, `merge_survivor()`,
   `cnv_spectre()`, `phase_hapcut2()`.
 
+## Benchmarking bake-off
+
+* `compare_sv_callers()` and `compare_small_variant_callers()` run several
+  callers over the same alignment, benchmark each against a truth set
+  (Truvari / hap.py) and return one ranked `nanoflow_benchmark` table of
+  precision/recall/F1 (plus TP/FP/FN and runtime). Missing or failing
+  callers are warned about and omitted, never fatal. The SV bake-off can
+  add the SURVIVOR-merged consensus as an extra row. `write_benchmark_csv()`
+  and `as.data.frame()`/`print()` methods included.
+
 ## Infrastructure
 
 * All locations from a YAML config (`read_config()`,

@@ -1,5 +1,7 @@
 # nanoflow
 
+[![CI](https://github.com/fionameinzer/Nanopore_workflow/actions/workflows/ci.yml/badge.svg)](https://github.com/fionameinzer/Nanopore_workflow/actions/workflows/ci.yml)
+
 **End-to-end Oxford Nanopore long-read whole-genome analysis, orchestrated from R.**
 
 nanoflow runs a complete ONT WGS workflow on real sequencing data —
@@ -107,6 +109,26 @@ render_report(run)
   Sniffles ≥ 2.6).
 - **Slurm:** `submit_slurm("samples.csv", "config.yml", partition = "...")`
   submits one job per sample; `dry_run = TRUE` just writes the scripts.
+
+## Benchmarking bake-off
+
+Compare callers on the same alignment against a truth set and get one
+ranked precision/recall/F1 table:
+
+```r
+cmp <- compare_sv_callers(bam, reference, "truth_sv.vcf", "bakeoff",
+                          tools = c("sniffles", "svim", "nanovar"),
+                          all_contigs = TRUE)
+cmp                               # ranked table, best F1 first
+write_benchmark_csv(cmp, "sv_callers.csv")
+# compare_small_variant_callers(bam, ref, "truth_small.vcf", "bakeoff",
+#                               tools = c("clair3", "medaka"))  # via hap.py
+```
+
+On the shipped fixture this cleanly surfaces the classic tradeoff — Sniffles
+recall 1.0 / precision 0.91 (all 10 SVs, 1 FP) vs SVIM precision 1.0 /
+recall 0.6 (no false calls, misses 4). Missing callers are skipped with a
+warning, so the table always reflects whatever is installed.
 
 ## Vignettes
 
