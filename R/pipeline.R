@@ -118,7 +118,7 @@ run_sample <- function(row, cfg, out_root, overwrite = FALSE) {
   # 2. Read QC and trimming --------------------------------------------
   if (isTRUE(cfg$steps$qc$run)) {
     steps$qc_nanoplot <- step_try("qc_nanoplot", "nanoplot",
-      qc_nanoplot(fastq, sdir("qc", "nanoplot_raw"), threads,
+      qc_nanoplot(fastq, sdir("qc", "nanoplot_raw"), threads = 1,
                   config = cfg, overwrite = overwrite))
     if (!is.na(row$sequencing_summary)) {
       steps$qc_pycoqc <- step_try("qc_pycoqc", "pycoqc",
@@ -142,7 +142,7 @@ run_sample <- function(row, cfg, out_root, overwrite = FALSE) {
       config = cfg, overwrite = overwrite)
     fastq <- filtered
     steps$qc_nanoplot_filtered <- step_try("qc_nanoplot", "nanoplot",
-      qc_nanoplot(fastq, sdir("qc", "nanoplot_filtered"), threads,
+      qc_nanoplot(fastq, sdir("qc", "nanoplot_filtered"), threads = 1,
                   config = cfg, overwrite = overwrite))
   }
 

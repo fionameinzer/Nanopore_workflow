@@ -1,0 +1,23 @@
+# Slim conda environment for CI integration tests only.
+# Deliberately smaller than inst/conda/environment.yml (no Clair3/Medaka/
+# hap.py/AnnotSV etc.) so the CI solve stays fast, and with relaxed pins so
+# CI does not break when bioconda retires a build. The authoritative,
+# fully pinned user environment remains inst/conda/environment.yml.
+name: nanoflow-ci
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.10
+  - nanoplot
+  - porechop
+  - filtlong
+  - multiqc
+  - minimap2
+  - bwa
+  - samtools
+  - flye
+  - sniffles >=2.6
+  - whatshap
+  - truvari >=4
+  - htslib

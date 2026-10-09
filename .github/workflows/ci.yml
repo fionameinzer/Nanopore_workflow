@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: package correctness on a bare runner. No bioinformatics tools
+  # are installed, so this exercises R CMD check, the documentation, the
+  # vignettes (workflow chunks self-disable) and the ~70 tool-free test
+  # assertions -- and proves the suite skips cleanly on machines without
+  # the conda environment.
+  R-CMD-check:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          args: 'c("--no-manual", "--as-cran")'
+          upload-snapshots: true
+
+  # Job 2: integration tests against real tools from bioconda (the slim CI
+  # environment), including the end-to-end pipeline on the synthetic
+  # fixture. Uploads the pipeline's HTML report as a build artifact.
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      NOT_CRAN: "true"
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: .github/environment-ci.yml
+          cache-environment: true
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+
+      - name: Verify tools are visible to nanoflow
+        run: |
+          R CMD INSTALL --no-multiarch .
+          Rscript -e 'library(nanoflow); tools <- check_tools(tools = c(
+              "nanoplot", "porechop", "filtlong", "multiqc", "minimap2",
+              "bwa", "samtools", "flye", "sniffles", "whatshap", "truvari",
+              "bgzip", "tabix"));
+            stopifnot(all(tools$found))'
+
+      - name: Run test suite (integration tests included)
+        run: |
+          Rscript -e 'res <- testthat::test_dir("tests/testthat",
+              package = "nanoflow", load_package = "installed",
+              stop_on_failure = TRUE);
+            df <- as.data.frame(res);
+            cat(sprintf("passed %d | failed %d | skipped %d\n",
+                sum(df$passed), sum(df$failed), sum(df$skipped)))'
+
+      - name: End-to-end pipeline demo on the fixture
+        run: |
+          Rscript -e '
+            library(nanoflow)
+            run <- run_pipeline(
+              system.file("extdata/sim/sample_sheet.csv", package = "nanoflow"),
+              list(
+                reference = list(fasta = system.file("extdata/sim/genome.fa",
+                                                     package = "nanoflow")),
+                output_dir = "nf_ci_run",
+                threads = 4,
+                steps = list(
+                  assembly = list(run = TRUE, tool = "flye",
+                                  polish = character(0),
+                                  extra_args = character(0)),
+                  small_variants = list(run = FALSE),
+                  sv = list(run = TRUE, extra_args = "--all-contigs"),
+                  report = list(run = TRUE, igv_regions = character(0))
+                )))
+            print(run)
+            m <- run$samples$sim1$benchmark_sv$params$metrics
+            cat("Truvari:", sprintf("precision=%.3f recall=%.3f f1=%.3f",
+                m$precision, m$recall, m$f1), "\n")
+            stopifnot(m$recall >= 0.8, m$precision >= 0.7)
+            stopifnot(run$samples$sim1$align$status == "ok",
+                      run$samples$sim1$assembly$status == "ok")'
+
+      - name: Upload run report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nanoflow-fixture-run-report
+          path: |
+            nf_ci_run/report.html
+            nf_ci_run/multiqc/multiqc_report.html
+            nf_ci_run/provenance.json
+          if-no-files-found: ignore

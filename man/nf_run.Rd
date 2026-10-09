@@ -4,7 +4,7 @@
 \alias{nf_run}
 \title{Run an external command, check its exit status, time it}
 \usage{
-nf_run(bin, args, log = NULL, stdout_file = NULL)
+nf_run(bin, args, log = NULL, stdout_file = NULL, timeout = 0)
 }
 \arguments{
 \item{bin}{Resolved binary path or name.}
@@ -16,6 +16,11 @@ shell quoting is needed).}
 
 \item{stdout_file}{Redirect stdout to this file instead of the log
 (for tools that write results to stdout).}
+
+\item{timeout}{Wall-clock limit in seconds; \code{0} (default) means no limit.
+A tool exceeding it is killed and the step fails (caught per-step by
+\code{\link[=run_pipeline]{run_pipeline()}}), so a wedged tool can never hang the whole run -- a
+real risk for QC tools with Python multiprocessing (e.g. NanoPlot).}
 }
 \value{
 List with \code{status}, \code{runtime}, \code{command}.

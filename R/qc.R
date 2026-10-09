@@ -4,13 +4,21 @@
 #'
 #' @param fastq Nanopore FASTQ(.gz).
 #' @param out_dir Output directory for plots and `NanoStats.txt`.
-#' @param threads CPU threads.
+#' @param threads CPU threads. Defaults to 1: NanoPlot's multiprocessing
+#'   pool deadlocks in headless environments (background jobs, CI runners,
+#'   some containers) with `threads > 1`, and threading gives a once-per-sample
+#'   QC step negligible benefit. Raise it only if you know your environment
+#'   handles NanoPlot multiprocessing.
+#' @param timeout Wall-clock limit in seconds (default 1800). NanoPlot's
+#'   multiprocessing can deadlock in some environments; the limit turns a
+#'   hang into a caught step failure instead of blocking the run. `0`
+#'   disables it.
 #' @param extra_args Extra command-line arguments appended verbatim.
 #' @param config Optional nanoflow config (binary overrides).
 #' @param overwrite Rerun even if outputs already exist.
 #' @return A `nanoflow_step` with `outputs$stats` and `outputs$dir`.
 #' @export
-qc_nanoplot <- function(fastq, out_dir, threads = 4,
+qc_nanoplot <- function(fastq, out_dir, threads = 1, timeout = 1800,
                         extra_args = character(), config = NULL,
                         overwrite = FALSE) {
   assert_file(fastq, "FASTQ")
@@ -22,7 +30,7 @@ qc_nanoplot <- function(fastq, out_dir, threads = 4,
   log <- file.path(out_dir, "nanoplot.log")
   res <- nf_run(nf_bin("nanoplot", config),
                 c("--fastq", fastq, "-o", out_dir, "-t", threads, extra_args),
-                log = log)
+                log = log, timeout = timeout)
   new_step("qc_nanoplot", "nanoplot", res$command,
            list(stats = stats, dir = out_dir), list(threads = threads),
            res$runtime, log)

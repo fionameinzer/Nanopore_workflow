@@ -22,8 +22,8 @@ fixture end to end.
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/fiona-meinzer/Nanopore_workflow}
-  \item Report bugs at \url{https://github.com/fiona-meinzer/Nanopore_workflow/issues}
+  \item \url{https://github.com/fionameinzer/Nanopore_workflow}
+  \item Report bugs at \url{https://github.com/fionameinzer/Nanopore_workflow/issues}
 }
 
 }

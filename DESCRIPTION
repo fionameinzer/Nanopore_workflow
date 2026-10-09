@@ -22,8 +22,8 @@ Description: Orchestrates an end-to-end Oxford Nanopore long-read
     Illumina short reads are an optional per-sample extra used for
     hybrid assembly.
 License: MIT + file LICENSE
-URL: https://github.com/fiona-meinzer/Nanopore_workflow
-BugReports: https://github.com/fiona-meinzer/Nanopore_workflow/issues
+URL: https://github.com/fionameinzer/Nanopore_workflow
+BugReports: https://github.com/fionameinzer/Nanopore_workflow/issues
 Depends:
     R (>= 4.1)
 Imports:

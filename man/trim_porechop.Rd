@@ -18,7 +18,11 @@ trim_porechop(
 
 \item{out_fastq}{Output trimmed FASTQ.gz.}
 
-\item{threads}{CPU threads.}
+\item{threads}{CPU threads. Defaults to 1: NanoPlot's multiprocessing
+pool deadlocks in headless environments (background jobs, CI runners,
+some containers) with \code{threads > 1}, and threading gives a once-per-sample
+QC step negligible benefit. Raise it only if you know your environment
+handles NanoPlot multiprocessing.}
 
 \item{extra_args}{Extra command-line arguments appended verbatim.}
 

@@ -90,15 +90,30 @@ nf_bin <- function(tool, config = NULL) {
 #' @param log File to capture stdout+stderr, `NULL` to pass through.
 #' @param stdout_file Redirect stdout to this file instead of the log
 #'   (for tools that write results to stdout).
+#' @param timeout Wall-clock limit in seconds; `0` (default) means no limit.
+#'   A tool exceeding it is killed and the step fails (caught per-step by
+#'   [run_pipeline()]), so a wedged tool can never hang the whole run -- a
+#'   real risk for QC tools with Python multiprocessing (e.g. NanoPlot).
 #' @return List with `status`, `runtime`, `command`.
 #' @keywords internal
-nf_run <- function(bin, args, log = NULL, stdout_file = NULL) {
+nf_run <- function(bin, args, log = NULL, stdout_file = NULL, timeout = 0) {
   cmd <- paste(c(bin, args), collapse = " ")
   message("[nanoflow] $ ", cmd)
   t0 <- Sys.time()
   stdout <- if (!is.null(stdout_file)) stdout_file else (log %||% "")
   stderr <- log %||% ""
-  status <- suppressWarnings(system2(bin, args, stdout = stdout, stderr = stderr))
+  # Feed /dev/null as stdin: these are batch tools that take file arguments,
+  # and some (e.g. NanoPlot via matplotlib) block forever on an inherited
+  # stdin when run detached/headless (background jobs, CI runners, Slurm).
+  status <- suppressWarnings(system2(bin, args, stdout = stdout,
+                                     stderr = stderr, stdin = "/dev/null",
+                                     timeout = timeout))
+  timed_out <- isTRUE(attr(status, "timeout")) ||
+    (timeout > 0 && identical(as.integer(status), 124L))
+  if (timed_out) {
+    stop(sprintf("command timed out after %gs:\n  %s", timeout, cmd),
+         call. = FALSE)
+  }
   runtime <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
   if (!identical(status, 0L)) {
     tail_log <- if (!is.null(log) && file.exists(log)) {
@@ -122,7 +137,7 @@ nf_run_shell <- function(cmd, log = NULL) {
   t0 <- Sys.time()
   status <- suppressWarnings(system2(
     "bash", c("-c", shQuote(paste("set -euo pipefail;", cmd))),
-    stdout = log %||% "", stderr = log %||% ""))
+    stdout = log %||% "", stderr = log %||% "", stdin = "/dev/null"))
   runtime <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
   if (!identical(status, 0L)) {
     tail_log <- if (!is.null(log) && file.exists(log)) {
