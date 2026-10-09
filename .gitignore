@@ -7,3 +7,4 @@ nanoflow.Rcheck/
 inst/doc
 /results/
 *.log
+.quarto/

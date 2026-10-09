@@ -4,10 +4,12 @@
 
 **End-to-end Oxford Nanopore long-read whole-genome analysis, orchestrated from R.**
 
-📊 **Results:** CI rebuilds the workflow on the synthetic fixture on every push —
-see the [live HTML run report](https://fionameinzer.github.io/Nanopore_workflow/)
-(GitHub Pages) and the caller-comparison numbers in
-[`benchmarks/`](benchmarks/).
+📊 **Results:**
+read the **[2-page benchmark report (PDF)](report/nanoflow-report.pdf)** — data,
+workflow and results at a glance, viewable right here in GitHub. For more depth,
+see the [live interactive HTML run report](https://fionameinzer.github.io/Nanopore_workflow/)
+(GitHub Pages), the caller-comparison numbers in [`benchmarks/`](benchmarks/), and
+the report source [`report/nanoflow-report.qmd`](report/nanoflow-report.qmd).
 
 nanoflow runs a complete ONT WGS workflow on real sequencing data —
 basecalling → QC/trimming → alignment → (optional) de novo assembly →
